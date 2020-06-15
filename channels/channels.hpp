@@ -20,55 +20,73 @@
 -- Mail : alexis.jeandet@member.fsf.org
 ----------------------------------------------------------------------------*/
 #pragma once
+#include <atomic>
 #include <condition_variable>
 #include <queue>
 #include <type_traits>
 
 namespace channels
 {
-namespace full_policy {
-struct wait_for_space
+namespace full_policy
 {
-};
-struct overwrite_last
-{
-};
+    struct wait_for_space
+    {
+    };
+    struct overwrite_last
+    {
+    };
 }
 namespace details
 {
 
-template<typename ref_type, typename... types>
-inline constexpr bool is_any_of_v = (std::is_same_v<ref_type,types>||...);
+    template <typename ref_type, typename... types>
+    inline constexpr bool is_any_of_v = (std::is_same_v<ref_type, types> || ...);
 
     template <typename T, std::size_t max_size, typename full_policy_t>
     struct _fixed_size_queue
     {
-        static_assert (is_any_of_v<full_policy_t,
-            full_policy::overwrite_last,full_policy::wait_for_space>,
-        "Unknown policy");
+        static_assert(
+            is_any_of_v<full_policy_t, full_policy::overwrite_last, full_policy::wait_for_space>,
+            "Unknown policy");
+
+        inline void add(const T& item)
+        {
+            T copy { item };
+            add(std::move(copy));
+        }
 
         inline void add(T&& item)
         {
             using namespace full_policy;
-            std::unique_lock<std::mutex> lock(m_mutex);
-            if constexpr (std::is_same_v<full_policy_t, wait_for_space>)
             {
-                m_cv.wait(lock, [this]() { return !full(); });
+                std::unique_lock<std::mutex> lock(m_mutex);
+                if constexpr (std::is_same_v<full_policy_t, wait_for_space>)
+                {
+                    m_cv.wait(lock, [this]() { return !full() || m_closed.load(); });
+                }
+                else if constexpr (std::is_same_v<full_policy_t, overwrite_last>)
+                {
+                    if (full())
+                        m_queue.pop_back();
+                }
             }
-            else if constexpr (std::is_same_v<full_policy_t, overwrite_last>)
+            if(!m_closed.load())
             {
-                if (full())
-                    m_queue.pop_back();
+                m_queue.push_back(std::move(item));
+                m_cv.notify_one();
             }
-            m_queue.push_back(std::forward<T>(item));
         }
 
         inline T take()
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this]() { return !empty(); });
+            m_cv.wait(lock, [this]() { return !empty() || m_closed.load(); });
+            if(m_closed.load())
+                return T{}; // maybe optional!
             T item = m_queue.front();
             m_queue.pop_front();
+            lock.unlock();
+            m_cv.notify_one();
             return item;
         }
 
@@ -76,9 +94,20 @@ inline constexpr bool is_any_of_v = (std::is_same_v<ref_type,types>||...);
         inline bool empty() const noexcept { return size() == 0U; }
         inline std::size_t size() const noexcept { return std::size(m_queue); }
 
+        inline bool closed() { return m_closed.load(); }
+        inline void close()
+        {
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_closed.store(true);
+            }
+            m_cv.notify_all();
+        }
+
     private:
         std::deque<T> m_queue;
         std::mutex m_mutex;
+        std::atomic<bool> m_closed { false };
         std::condition_variable m_cv;
     };
 
@@ -90,24 +119,28 @@ struct channel
 {
     using value_type = T;
 
-    channel()=default;
-    channel(const channel&)=delete;
-    channel& operator=(const channel&)=delete;
+    channel() = default;
+    channel(const channel&) = delete;
+    channel& operator=(const channel&) = delete;
 
     inline channel& operator<<(T&& item)
     {
-        add(std::forward<T>(item));
+        add(std::move(item));
         return *this;
     }
 
-    inline channel& operator<<(T& item)
+    inline channel& operator<<(const T& item)
     {
-        item = take();
+        add(item);
         return *this;
     }
 
     inline T take() { return m_queue.take(); }
-    inline void add(T&& item) { m_queue.add(std::forward<T>(item)); }
+    inline void add(T&& item) { m_queue.add(std::move(item)); }
+    inline void add(const T& item) { m_queue.add(item); }
+
+    inline bool closed() { return m_queue.closed(); };
+    inline void close() { m_queue.close(); }
 
     inline std::size_t size() const noexcept { return std::size(m_queue); }
 
