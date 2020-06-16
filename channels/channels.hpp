@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <queue>
 #include <type_traits>
+#include <optional>
 
 namespace channels
 {
@@ -77,17 +78,17 @@ namespace details
             }
         }
 
-        inline T take()
+        inline std::optional<T> take()
         {
             std::unique_lock<std::mutex> lock(m_mutex);
             m_cv.wait(lock, [this]() { return !empty() || m_closed.load(); });
             if(m_closed.load())
-                return T{}; // maybe optional!
+                return std::nullopt; // maybe optional!
             T item = m_queue.front();
             m_queue.pop_front();
             lock.unlock();
             m_cv.notify_one();
-            return item;
+            return std::optional<T>{item};
         }
 
         inline bool full() const noexcept { return size() >= (max_size); }
@@ -135,7 +136,7 @@ struct channel
         return *this;
     }
 
-    inline T take() { return m_queue.take(); }
+    inline std::optional<T> take() { return m_queue.take(); }
     inline void add(T&& item) { m_queue.add(std::move(item)); }
     inline void add(const T& item) { m_queue.add(item); }
 

@@ -36,7 +36,7 @@ SCENARIO("Multithreads", "[Channels]")
         channels::channel<int, 1, channels::full_policy::overwrite_last> in_chan, out_chan;
         std::thread t{[&in_chan,&out_chan]()
             {
-                out_chan << in_chan.take() * 10;
+                out_chan << *in_chan.take() * 10;
             }};
         in_chan << 1;
         t.join();
@@ -49,7 +49,9 @@ SCENARIO("Multithreads", "[Channels]")
         std::thread t{[&chan1,&chan2]()
             {
                 while (!chan1.closed()) {
-                    chan2 << chan1.take() * 10;
+                    auto val=chan1.take();
+                    if(val)
+                        chan2 << *val * 10;
                 }
             }};
         std::thread t2{[&chan2,&chan3]()
@@ -58,7 +60,7 @@ SCENARIO("Multithreads", "[Channels]")
                 static int result = 0;
                 while (i<10)
                 {
-                    result += chan2.take();
+                    result += *chan2.take();
                     i++;
                 }
                 chan3 << result;
@@ -68,6 +70,6 @@ SCENARIO("Multithreads", "[Channels]")
         t2.join();
         chan1.close();
         t.join();
-        REQUIRE(chan3.take() == 450);
+        REQUIRE(*chan3.take() == 450);
     }
 }

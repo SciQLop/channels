@@ -43,7 +43,7 @@ SCENARIO("Single thread", "[Channels]")
             THEN("Size should be 1 and item can be retreived")
             {
                 REQUIRE(std::size(chan) == 1);
-                REQUIRE(chan.take() == -1);
+                REQUIRE(*chan.take() == -1);
                 REQUIRE(std::size(chan) == 0);
             }
         }
@@ -53,7 +53,7 @@ SCENARIO("Single thread", "[Channels]")
             THEN("Size should be still 1 and last item can be retreived")
             {
                 REQUIRE(std::size(chan) == 1);
-                REQUIRE(chan.take() == -2);
+                REQUIRE(*chan.take() == -2);
                 REQUIRE(std::size(chan) == 0);
             }
         }
@@ -72,7 +72,7 @@ SCENARIO("Single thread", "[Channels]")
             THEN("Size should be 1 and item can be retreived")
             {
                 REQUIRE(std::size(chan) == 1);
-                REQUIRE(chan.take() == -1);
+                REQUIRE(*chan.take() == -1);
                 REQUIRE(std::size(chan) == 0);
             }
         }
@@ -82,9 +82,9 @@ SCENARIO("Single thread", "[Channels]")
             THEN("Size should be 2 and both two items can be retreived")
             {
                 REQUIRE(std::size(chan) == 2);
-                REQUIRE(chan.take() == -10);
+                REQUIRE(*chan.take() == -10);
                 REQUIRE(std::size(chan) == 1);
-                REQUIRE(chan.take() == -2);
+                REQUIRE(*chan.take() == -2);
                 REQUIRE(std::size(chan) == 0);
             }
         }
