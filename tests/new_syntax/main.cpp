@@ -56,4 +56,5 @@ SCENARIO("new_syntax", "[Channels]")
 
     auto pipeline4 = chan_t {} >> std::bind(std::multiplies<int> {}, 10, _1)
         >> std::bind(std::plus<int> {}, -1, _1);
+
 }

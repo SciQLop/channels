@@ -34,7 +34,7 @@ SCENARIO("Multithreads", "[Channels]")
     GIVEN("a single slot channel")
     {
         channels::channel<int, 1, channels::full_policy::overwrite_last> in_chan, out_chan;
-        std::thread t{[&in_chan,&out_chan]()
+        std::thread t{[&in_chan,out_chan]()mutable
             {
                 out_chan << *in_chan.take() * 10;
             }};
