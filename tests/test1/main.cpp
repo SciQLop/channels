@@ -88,5 +88,19 @@ SCENARIO("Single thread", "[Channels]")
                 REQUIRE(std::size(chan) == 0);
             }
         }
+        WHEN("copying it")
+        {
+            auto copy = chan;
+            THEN("Both chan and cpoy should point to the same queue")
+            {
+                REQUIRE(std::size(chan) == std::size(copy));
+                chan << 5;
+                REQUIRE(std::size(chan) == 1);
+                REQUIRE(std::size(chan) == std::size(copy));
+                copy << 10;
+                REQUIRE(std::size(chan) == 2);
+                REQUIRE(std::size(chan) == std::size(copy));
+                }
+        }
     }
 }
