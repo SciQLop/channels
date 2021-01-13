@@ -8,7 +8,7 @@ channels_dep = declare_dependency(
 )
 
 
-foreach test:['test1', 'multithreads']
+foreach test:['test1', 'multithreads', 'new_syntax']
     exe = executable(test,'tests/'+test+'/main.cpp',
                     dependencies:[catch2_dep, thread_dep, channels_dep],
                     install: false

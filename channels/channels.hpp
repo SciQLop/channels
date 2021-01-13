@@ -22,9 +22,10 @@
 #pragma once
 #include <atomic>
 #include <condition_variable>
+#include <functional>
+#include <optional>
 #include <queue>
 #include <type_traits>
-#include <optional>
 
 namespace channels
 {
@@ -71,7 +72,7 @@ namespace details
                         m_queue.pop_back();
                 }
             }
-            if(!m_closed.load())
+            if (!m_closed.load())
             {
                 m_queue.push_back(std::move(item));
                 m_cv.notify_one();
@@ -82,13 +83,13 @@ namespace details
         {
             std::unique_lock<std::mutex> lock(m_mutex);
             m_cv.wait(lock, [this]() { return !empty() || m_closed.load(); });
-            if(m_closed.load())
+            if (m_closed.load())
                 return std::nullopt; // maybe optional!
             T item = m_queue.front();
             m_queue.pop_front();
             lock.unlock();
             m_cv.notify_one();
-            return std::optional<T>{item};
+            return std::optional<T> { item };
         }
 
         inline bool full() const noexcept { return size() >= (max_size); }
@@ -115,30 +116,33 @@ namespace details
 
 }
 
-template <typename T, std::size_t max_size, typename full_policy_t = full_policy::wait_for_space>
+template <typename _value_type, std::size_t _max_size,
+    typename _full_policy_t = full_policy::wait_for_space>
 struct channel
 {
-    using value_type = T;
+    using value_type = _value_type;
+    using full_policy_t = _full_policy_t;
+    static inline constexpr std::size_t max_size = _max_size;
 
     channel() = default;
     channel(const channel&) = delete;
     channel& operator=(const channel&) = delete;
 
-    inline channel& operator<<(T&& item)
+    inline channel& operator<<(value_type&& item)
     {
         add(std::move(item));
         return *this;
     }
 
-    inline channel& operator<<(const T& item)
+    inline channel& operator<<(const value_type& item)
     {
         add(item);
         return *this;
     }
 
-    inline std::optional<T> take() { return m_queue.take(); }
-    inline void add(T&& item) { m_queue.add(std::move(item)); }
-    inline void add(const T& item) { m_queue.add(item); }
+    inline std::optional<value_type> take() { return m_queue.take(); }
+    inline void add(value_type&& item) { m_queue.add(std::move(item)); }
+    inline void add(const value_type& item) { m_queue.add(item); }
 
     inline bool closed() { return m_queue.closed(); };
     inline void close() { m_queue.close(); }
@@ -146,7 +150,32 @@ struct channel
     inline std::size_t size() const noexcept { return std::size(m_queue); }
 
 private:
-    details::_fixed_size_queue<T, max_size, full_policy_t> m_queue;
+    details::_fixed_size_queue<value_type, max_size, full_policy_t> m_queue;
+};
+
+template <typename _input_channel_t, typename _function_t>
+struct pipeline_t : channels::channel<int, _input_channel_t::max_size,
+                        typename _input_channel_t::full_policy_t>
+{
+    using input_channel_t = _input_channel_t;
+    pipeline_t(){}
+    ~pipeline_t(){}
 };
 
 }
+
+template <typename _value_type, std::size_t _max_size, typename _full_policy_t, typename function_t>
+auto operator>>(
+    channels::channel<_value_type, _max_size, _full_policy_t>&& chan, const function_t& f)
+    -> decltype(f(*chan.take()), channels::pipeline_t<channels::channel<_value_type, _max_size, _full_policy_t>, function_t> {})
+{
+    return {};
+}
+
+
+/*template <typename pipeline_t, typename channel_t>
+auto operator>>(pipeline_t&& pipeline, channel_t& c)
+    -> decltype(f(*chan.take()), channels::pipeline_t<typename pipeline_t::>{})
+{
+    return {};
+}*/
