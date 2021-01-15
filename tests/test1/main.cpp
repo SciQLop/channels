@@ -61,7 +61,7 @@ SCENARIO("Single thread", "[Channels]")
 
     GIVEN("a buffered channel")
     {
-        channels::channel<int, 5, channels::full_policy::overwrite_last> chan;
+        channels::channel<int, 10, channels::full_policy::overwrite_last> chan;
         WHEN("Nothing is inside")
         {
             THEN("Size should be 0") { REQUIRE(std::size(chan) == 0); }
@@ -100,7 +100,17 @@ SCENARIO("Single thread", "[Channels]")
                 copy << 10;
                 REQUIRE(std::size(chan) == 2);
                 REQUIRE(std::size(chan) == std::size(copy));
-                }
+            }
+        }
+        WHEN("moving it")
+        {
+            chan << 1 << 2;
+            const auto size = std::size(chan);
+            auto moved = std::move(chan);
+            THEN("moved should have size")
+            {
+                REQUIRE(std::size(moved) == size);
+            }
         }
     }
 }
