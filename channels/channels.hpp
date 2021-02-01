@@ -70,11 +70,11 @@ namespace details
                     if (full())
                         m_queue.pop_back();
                 }
-            }
-            if (!closed())
-            {
-                m_queue.push_back(std::move(item));
-                m_cv.notify_one();
+                if (!closed())
+                {
+                    m_queue.push_back(std::move(item));
+                    m_cv.notify_one();
+                }
             }
         }
 
