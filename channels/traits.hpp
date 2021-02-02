@@ -268,7 +268,7 @@ struct returns_void_impl_t<T, true> : std::is_same<return_type_t<T>, void>::type
 
 
 template <typename T>
-struct returns_void_t : returns_void_impl_t<T, std::is_invocable_v<T>>
+struct returns_void_t : returns_void_impl_t<T, is_callable<T>::value>
 {
 };
 

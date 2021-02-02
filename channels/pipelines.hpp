@@ -44,8 +44,8 @@ namespace details
         output_channel_t output_chan;
 
         inline std::optional<out_value_type> take() { return output_chan.take(); }
-        inline bool closed() { return output_chan.closed(); }
-        inline void close() { output_chan.close(); }
+        virtual bool closed() { return output_chan.closed(); }
+        virtual void close() { output_chan.close(); }
         inline std::size_t size() const noexcept { return std::size(output_chan); }
 
         _output_pipeline_interface() = default;
@@ -86,6 +86,11 @@ namespace details
         inline void add(in_value_type&& item) { input_chan.add(std::move(item)); }
         inline void add(const in_value_type& item) { input_chan.add(item); }
 
+        virtual bool closed() { return input_chan.closed(); }
+
+        virtual void close() { input_chan.close(); }
+
+
         _input_pipeline_interface(_input_channel_t&& input_chan)
                 : input_chan { std::move(input_chan) }
         {
@@ -120,6 +125,18 @@ namespace details
 
         using output_channel_t = typename output_pipeline_interface_t::output_channel_t;
         using out_value_type = typename output_channel_t::out_value_type;
+
+        virtual bool closed() final
+        {
+            return input_pipeline_interface_t::closed() or output_pipeline_interface_t::closed();
+        }
+
+        virtual void close() final
+        {
+            input_pipeline_interface_t::close();
+            output_pipeline_interface_t::close();
+        }
+
 
         filter_impl(_input_channel_t&& input_chan, _function_t f)
                 : input_pipeline_interface_t { std::move(input_chan) }
@@ -244,8 +261,8 @@ namespace details
     template <typename _source_t, typename _sink_t>
     struct full_pipeline_impl
     {
-        full_pipeline_impl(_source_t _source, _sink_t _sink): m_source { _source }, m_sink { _sink },
-            thread { &full_pipeline_impl::loop, this }
+        full_pipeline_impl(_source_t _source, _sink_t _sink)
+                : m_source { _source }, m_sink { _sink }, thread { &full_pipeline_impl::loop, this }
         {
         }
 
@@ -398,11 +415,12 @@ struct sink
     static_assert(traits::is_sink_function_v<function_t>,
         "You must pass a function with this signature void(Args...)");
     using tag = struct sink_tag;
-    using in_value_type = decltype(std::declval<function_t>()());
+    using in_value_type = std::remove_cv_t<std::remove_reference_t<traits::arg_type_t<function_t>>>;
     using impl_t = details::sink_impl<function_t>;
 
     sink(function_t f) : m_sink { new impl_t { f } } { }
     sink(sink&& other) : m_sink { std::move(other.m_sink) } { }
+    sink(const sink& other) : m_sink { other.m_sink } { }
 
     inline sink& operator<<(in_value_type&& item)
     {
@@ -430,9 +448,12 @@ template <typename _source_t, typename _sink_t>
 struct full_pipeline
 {
     using tag = struct full_pipeline_tag;
-    using impl_t = details::full_pipeline_impl<_source_t,_sink_t>;
+    using impl_t = details::full_pipeline_impl<_source_t, _sink_t>;
 
-    full_pipeline(_source_t _source, _sink_t _sink) : m_full_pipeline { new impl_t { _source,_sink } } { }
+    full_pipeline(_source_t _source, _sink_t _sink)
+            : m_full_pipeline { new impl_t { _source, _sink } }
+    {
+    }
     full_pipeline(full_pipeline&& other) : m_full_pipeline { std::move(other.m_full_pipeline) } { }
 
 
@@ -453,7 +474,7 @@ namespace operators
     auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
     {
         if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
-                return full_pipeline(source(std::forward<lhs_t>(lhs)), sink(std::forward<rhs_t>(rhs)));
+            return full_pipeline(source(std::forward<lhs_t>(lhs)), sink(std::forward<rhs_t>(rhs)));
         else
             return source(source(std::forward<lhs_t>(lhs)), std::forward<rhs_t>(rhs));
     }
@@ -465,16 +486,17 @@ namespace operators
             int> = 0>
     auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
     {
-        if constexpr (traits::has_input_chan_interface_v<
-                          std::decay_t<lhs_t>> and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>)
+        if constexpr (traits::has_input_chan_interface_v<std::decay_t<
+                          lhs_t>> and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>)
             return filter(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
         else
         {
-            if constexpr(traits::is_sink_function_v<std::decay_t<rhs_t>>)
-                    return full_pipeline(std::forward<lhs_t>(lhs), sink(std::forward<rhs_t>(rhs)));
+            if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
+                return full_pipeline(std::forward<lhs_t>(lhs), sink(std::forward<rhs_t>(rhs)));
             else
             {
-                if constexpr (traits::has_output_chan_interface_v<std::decay_t<rhs_t>> or traits::is_callable<std::decay_t<rhs_t>>::value)
+                if constexpr (traits::has_output_chan_interface_v<std::decay_t<
+                                  rhs_t>> or traits::is_callable<std::decay_t<rhs_t>>::value)
                     return source(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
 
                 else
