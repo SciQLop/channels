@@ -60,9 +60,7 @@ TEST_CASE("Channels utils", "[type traits]")
 
     REQUIRE(is_channel_like_v<channel<int>>);
     REQUIRE(has_output_chan_interface_v<channel<int>>);
-    //  REQUIRE(
-    //      is_channel_like_v<decltype(test_functor_t::static_source >>
-    //      test_functor_t::static_filter >> test_functor_t::static_sink)>);
+
     REQUIRE(
         is_channel_like_v<decltype(channel<int> {} >> std::bind(std::multiplies<int> {}, 10, _1))>);
     REQUIRE(!is_channel_like_v<decltype(std::bind(std::multiplies<int> {}, 10, _1))>);
@@ -83,11 +81,14 @@ TEST_CASE("Channels utils", "[type traits]")
     REQUIRE(std::is_same_v<const int&, arg_type_t<decltype(test_filter_const_ref_lambda)>>);
     REQUIRE(std::is_same_v<return_type_t<decltype(test_source_lambda)>,
         std::remove_cv_t<std::remove_reference_t<arg_type_t<decltype(test_filter_lambda)>>>>);
+    REQUIRE(std::is_same_v<int, return_type_t<decltype(std::bind(std::plus<int>(),1))>>);
+
 
     REQUIRE(is_callable<double(double const&)&>::value);
     REQUIRE(is_callable<decltype(test_source_lambda)>::value);
     REQUIRE(is_callable<decltype(test_filter_lambda)>::value);
     REQUIRE(is_callable<std::plus<int>>::value);
+    REQUIRE(is_callable<decltype (std::bind(std::plus<int>(),1))>::value);
     REQUIRE(is_callable<decltype(test_functor_t::static_source)>::value);
     REQUIRE(is_callable<decltype(test_functor_t::static_sink)>::value);
     REQUIRE(is_callable<decltype(test_functor_t::static_filter)>::value);

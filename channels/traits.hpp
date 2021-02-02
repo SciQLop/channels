@@ -247,8 +247,24 @@ struct signature : signature_impl<T>
 };
 
 
+
+template <typename T, bool is_bind>
+struct return_type_impl;
+
 template <typename T>
-using return_type_t = typename signature<T>::return_type;
+struct return_type_impl<T,true>
+{
+    using type = typename T::result_type;
+};
+
+template <typename T>
+struct return_type_impl<T,false>
+{
+    using type = typename signature<T>::return_type;
+};
+
+template <typename T>
+using return_type_t = typename return_type_impl<T, std::is_bind_expression_v<T>>::type;
 
 template <typename T, std::size_t index = 0>
 using arg_type_t = std::tuple_element_t<index, typename signature<T>::argument_type>;
