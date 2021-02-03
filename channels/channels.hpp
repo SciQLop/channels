@@ -98,10 +98,7 @@ namespace details
         inline bool closed() { return m_closed.load(); }
         inline void close()
         {
-            {
-                std::unique_lock<std::mutex> lock(m_mutex);
-                m_closed.store(true);
-            }
+            m_closed.store(true);
             m_cv.notify_all();
         }
 
