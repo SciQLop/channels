@@ -1,6 +1,6 @@
 project('channels', 'cpp',default_options : ['cpp_std=c++17'], license: 'GPL3', version: '0.0.1')
 
-catch2_dep = dependency('catch2', main : true, fallback : ['catch2', 'catch2_dep'])
+catch2_dep = dependency('catch2-with-main', version:'>3.0.0', required : true)
 thread_dep = dependency('threads')
 
 channels_dep = declare_dependency(

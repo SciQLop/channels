@@ -23,12 +23,8 @@
 #include <channels/pipelines.hpp>
 #include <functional>
 
-#define CATCH_CONFIG_MAIN
-#if __has_include(<catch2/catch.hpp>)
-#include <catch2/catch.hpp>
-#else
-#include <catch.hpp>
-#endif
+#include <catch2/catch_test_macros.hpp>
+
 
 template <std::size_t size, typename T>
 struct test_functor
