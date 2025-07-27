@@ -4,7 +4,8 @@ catch2_dep = dependency('catch2-with-main', version:'>3.0.0', required : true)
 thread_dep = dependency('threads')
 
 channels_dep = declare_dependency(
-    include_directories : include_directories('.')
+    include_directories : include_directories('.'),
+    extra_files : files('channels/channels.hpp', 'channels/pipelines.hpp', 'channels/tags.hpp', 'channels/traits.hpp'),
 )
 
 

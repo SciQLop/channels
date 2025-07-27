@@ -78,17 +78,29 @@ namespace details
             }
         }
 
-        inline std::optional<T> take()
+        inline std::optional<T> take(std::optional<std::chrono::nanoseconds> timeout = std::nullopt)
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this]() { return !empty() || m_closed.load(); });
-            if (m_closed.load())
-                return std::nullopt; // maybe optional!
+            if (!m_closed.load() && empty())
+            {
+                if (timeout) {
+                    // Wait with timeout
+                    bool not_timed_out = m_cv.wait_for(lock, *timeout, 
+                        [this]() { return !empty() || m_closed.load(); });
+                    if (!not_timed_out)
+                        return std::nullopt; // Timeout occurred
+                }
+                else {
+                    // Wait indefinitely
+                    m_cv.wait(lock, [this]() { return !empty() || m_closed.load(); });
+                }
+            }
+            if (empty())
+                return std::nullopt;
             std::optional<T> item {std::move(m_queue.front())};
             m_queue.pop_front();
-            lock.unlock();
             m_cv.notify_one();
-            return item ;
+            return item;
         }
 
         inline bool full() const noexcept { return size() >= (max_size); }
@@ -140,7 +152,7 @@ struct channel
         return *this;
     }
 
-    inline std::optional<out_value_type> take() { return m_queue->take(); }
+    inline std::optional<out_value_type> take(std::optional<std::chrono::nanoseconds> timeout = std::nullopt) { return m_queue->take(timeout); }
     inline void add(in_value_type&& item) { m_queue->add(std::move(item)); }
     inline void add(const in_value_type& item) { m_queue->add(item); }
 
