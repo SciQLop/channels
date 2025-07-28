@@ -21,8 +21,9 @@
 ----------------------------------------------------------------------------*/
 #pragma once
 #include "channels.hpp"
-#include "tags.hpp"
-#include "traits.hpp"
+#include "channels/tags.hpp"
+#include "channels/traits.hpp"
+#include "channels/concepts.hpp"
 #include <functional>
 #include <memory>
 #include <optional>
@@ -345,7 +346,7 @@ struct filter
     inline bool closed() { return m_filter->closed(); }
     inline void close() { m_filter->close(); }
 
-    inline std::size_t size() const noexcept { return std::size(m_filter); }
+   // inline std::size_t size() const noexcept { }
 
     filter(_input_channel_t&& input_chan, _function_t f)
             : m_filter { new impl_t { std::move(input_chan), f } }
@@ -466,46 +467,83 @@ private:
 
 namespace operators
 {
-    template <typename lhs_t, typename rhs_t,
-        std::enable_if_t<traits::is_source_function_v<std::decay_t<
-                             lhs_t>> and traits::is_callable<std::decay_t<rhs_t>>::value
-                and traits::are_compatible_v<std::decay_t<lhs_t>, std::decay_t<rhs_t>>,
-            int> = 0>
-    auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
-    {
-        if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
-            return full_pipeline(source(std::forward<lhs_t>(lhs)), sink(std::forward<rhs_t>(rhs)));
-        else
-            return source(source(std::forward<lhs_t>(lhs)), std::forward<rhs_t>(rhs));
-    }
+    // template <typename lhs_t, typename rhs_t,
+    //     std::enable_if_t<traits::is_source_function_v<std::decay_t<
+    //                          lhs_t>> and traits::is_callable<std::decay_t<rhs_t>>::value
+    //             and traits::are_compatible_v<std::decay_t<lhs_t>, std::decay_t<rhs_t>>,
+    //         int> = 0>
+    // auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
+    // {
+    //     if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
+    //         return full_pipeline(source(std::forward<lhs_t>(lhs)), sink(std::forward<rhs_t>(rhs)));
+    //     else
+    //         return source(source(std::forward<lhs_t>(lhs)), std::forward<rhs_t>(rhs));
+    // }
 
 
-    template <typename lhs_t, typename rhs_t,
-        std::enable_if_t<!traits::is_callable<std::decay_t<lhs_t>>::value
-                and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>,
-            int> = 0>
-    auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
+    auto operator>>(CanProduce auto&& lhs, CanConsume auto &&rhs)
     {
-        if constexpr (traits::has_input_chan_interface_v<std::decay_t<
-                          lhs_t>> and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>)
-            return filter(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
+        using lhs_t = std::decay_t<decltype(lhs)>;
+        using rhs_t = std::decay_t<decltype(rhs)>;
+
+        if constexpr (SourceToChannelCompatible<lhs_t, rhs_t>)
+        {
+            return source(std::forward<decltype(lhs)>(lhs), std::forward<decltype(rhs)>(rhs));
+        }
+        else if constexpr (ChannelToSinkCompatible<lhs_t, rhs_t>)
+        {
+            return sink(std::forward<decltype(lhs)>(lhs), std::forward<decltype(rhs)>(rhs));
+        }
         else
         {
-            if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
-                return full_pipeline(std::forward<lhs_t>(lhs), sink(std::forward<rhs_t>(rhs)));
-            else
-            {
-                if constexpr (traits::has_output_chan_interface_v<std::decay_t<
-                                  rhs_t>> or traits::is_callable<std::decay_t<rhs_t>>::value)
-                    return source(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
-
-                else
-                    return full_pipeline(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
-            }
+            return full_pipeline(std::forward<decltype(lhs)>(lhs), std::forward<decltype(rhs)>(rhs));
         }
     }
 
+
+    // template <typename lhs_t, typename rhs_t,
+    //     std::enable_if_t<!traits::is_callable<std::decay_t<lhs_t>>::value
+    //             and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>,
+    //         int> = 0>
+    // auto operator>>(lhs_t&& lhs, rhs_t&& rhs)
+    // {
+    //     if constexpr (traits::has_input_chan_interface_v<std::decay_t<
+    //                       lhs_t>> and traits::has_output_chan_interface_v<std::decay_t<lhs_t>>)
+    //         return filter(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
+    //     else
+    //     {
+    //         if constexpr (traits::is_sink_function_v<std::decay_t<rhs_t>>)
+    //             return full_pipeline(std::forward<lhs_t>(lhs), sink(std::forward<rhs_t>(rhs)));
+    //         else
+    //         {
+    //             if constexpr (traits::has_output_chan_interface_v<std::decay_t<
+    //                               rhs_t>> or traits::is_callable<std::decay_t<rhs_t>>::value)
+    //                 return source(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
+
+    //             else
+    //                 return full_pipeline(std::forward<lhs_t>(lhs), std::forward<rhs_t>(rhs));
+    //         }
+    //     }
+    // }
+
 }
 
 
 }
+
+
+#ifdef CHANNELS_COMPILE_TIME_TESTS
+
+namespace channels
+{
+
+static_assert(SourceToChannelCompatible<int(void), channel<int>>);
+static_assert(!SourceToChannelCompatible<int(int), channel<int>>);
+static_assert(!SourceToChannelCompatible<void(void), channel<int>>);
+static_assert(ChannelToSinkCompatible<channel<int>, void(int)>);
+static_assert(!ChannelToSinkCompatible<channel<int>, int(void)>);
+static_assert(!ChannelToSinkCompatible<channel<int>, void(void)>);
+
+} // namespace channels::tests
+
+#endif

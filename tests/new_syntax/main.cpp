@@ -43,25 +43,63 @@ SCENARIO("new_syntax", "[Channels]")
     using namespace std::placeholders;
     using namespace channels::operators;
 
+    GIVEN("a channel type")
+    {
+
     using chan_t = channels::channel<int, 128, channels::full_policy::wait_for_space>;
 
+    THEN("We can create a simple pipeline with a function")
+    {
+        auto pipeline = chan_t {} >> coef<10, int>;
+        REQUIRE(pipeline.closed() == false);
+        pipeline.add(10);
+        REQUIRE(*pipeline.take() == 100);
+    }
 
-    auto pipeline = chan_t {} >> coef<10, int>;
+    THEN("We can create a pipeline with multiple functions")
+    {
+        auto pipeline2 = chan_t {} >> [](int value) { return value * 10; }
+            >> [](int value) { return value - 1; };
+        REQUIRE(pipeline2.closed() == false);
+        pipeline2.add(10);
+        REQUIRE(*pipeline2.take() == 99);
+    }
 
-    auto pipeline2
-        = chan_t {} >> [](int value) { return value * 10; } >> [](int value) { return value - 1; };
+    THEN("We can create a pipeline with a function and an offset")
+    {
+        auto pipeline3 = chan_t {} >> coef<10, int> >> offset<-1, int>;
+        REQUIRE(pipeline3.closed() == false);
+        pipeline3.add(10);
+        REQUIRE(*pipeline3.take() == 99);
+    }
 
-    auto pipeline3 = chan_t {} >> coef<10, int> >> offset<-1, int>;
+    THEN("We can create a pipeline with std::bind")
+    {
+        auto pipeline4 = chan_t {} >> std::bind(std::multiplies<int> {}, 10, _1)
+            >> std::bind(std::plus<int> {}, -1, _1);
+        REQUIRE(pipeline4.closed() == false);
+        pipeline4.add(10);
+        REQUIRE(*pipeline4.take() == 99);
+    }
 
-    auto pipeline4 = chan_t {} >> std::bind(std::multiplies<int> {}, 10, _1)
-        >> std::bind(std::plus<int> {}, -1, _1);
+    // WHEN("Adding values to the pipelines")
+    // auto pipeline = chan_t {} >> coef<10, int>;
 
-    pipeline.add(10);
-    REQUIRE(*pipeline.take() == 100);
-    pipeline2 << 10;
-    REQUIRE(*pipeline2.take() == 99);
-    pipeline3 << 10;
-    REQUIRE(*pipeline3.take() == 99);
-    pipeline4 << 10;
-    REQUIRE(*pipeline4.take() == 99);
+    // auto pipeline2
+    //     = chan_t {} >> [](int value) { return value * 10; } >> [](int value) { return value - 1; };
+
+    // auto pipeline3 = chan_t {} >> coef<10, int> >> offset<-1, int>;
+
+    // auto pipeline4 = chan_t {} >> std::bind(std::multiplies<int> {}, 10, _1)
+    //     >> std::bind(std::plus<int> {}, -1, _1);
+
+    // pipeline.add(10);
+    // REQUIRE(*pipeline.take() == 100);
+    // pipeline2 << 10;
+    // REQUIRE(*pipeline2.take() == 99);
+    // pipeline3 << 10;
+    // REQUIRE(*pipeline3.take() == 99);
+    // pipeline4 << 10;
+    // REQUIRE(*pipeline4.take() == 99);
+    }
 }

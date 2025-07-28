@@ -1,0 +1,9 @@
+option('compile_time_tests',
+    type: 'boolean',
+    value: true,
+    description: 'Enable compile-time tests using static_assert')
+
+option('build_tests_even_if_subproject',
+    type: 'boolean',
+    value: false,
+    description: 'Build tests even if this is a subproject')
